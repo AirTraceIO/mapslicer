@@ -1,6 +1,6 @@
-# MapSlicer Docker Container
+# MapSlicer Docker Container with Flask API
 
-This README provides instructions on how to build and run the Docker container for the MapSlicer project. This container is set up to run `gdal2tiles.py` to generate map tiles from a TIFF image without requiring georeferencing, using the raster profile.
+This README provides instructions on how to build and run the Docker container for the MapSlicer project, now set up to expose `gdal2tiles.py` functionality through a Flask API. This allows generating map tiles from a TIFF image without requiring georeferencing, using the raster profile.
 
 ## Requirements
 
@@ -12,24 +12,49 @@ This README provides instructions on how to build and run the Docker container f
 Before running the container, you need to build the Docker image. You can do this by navigating to the directory containing the Dockerfile and running the following command:
 
 ```bash
-docker build -t mapslicer .
+docker build -t gdal-flask-api .
 ```
-This command builds the Docker image and tags it as `mapslicer`.
+This command builds the Docker image and tags it as `gdal-flask-api`.
+
 ## Running the Container
 
-To generate map tiles from your TIFF image, use the following command:
+To run the Flask API that provides access to the `gdal2tiles.py` functionality, use the following command:
 
 ```bash
-docker run -v $(pwd)/data:/usr/src/app/data mapslicer --profile=raster --zoom 5 /usr/src/app/data/final.tif /usr/src/app/data/output_folder
+docker run -p 5000:5000 -v $(pwd)/data:/usr/src/app/data gdal-flask-api
+
+```
+This command does the following:
+- Maps port `5000` of the container to port `5000` on the host, allowing the Flask application to be accessed via `localhost:5000`.
+- This command mounts your local `data` directory to the `/usr/src/app/data` directory in the container. The `gdal2tiles.py` script reads the `final.tif` file from this directory and outputs the tiles to the `output_folder` within the same directory.
+
+### Using the Flask API to Generate Map Tiles
+
+Once the Docker container is running, you can generate map tiles by sending a POST request to the Flask app. Here is an example using `curl`: 
+
+```bash
+curl -X POST http://localhost:5000/process \
+     -H "Content-Type: application/json" \
+     -d '{
+           "profile": "raster",
+           "zoom": 5,
+           "input_file": "final.tif",
+           "output_folder": "output_folder"
+         }'
 ```
 
-This command mounts your local `data` directory to the `/usr/src/app/data` directory in the container. The `gdal2tiles.py` script reads the `final.tif` file from this directory and outputs the tiles to the `output_folder` within the same directory.
+In this request:
+
+- `"profile": "raster"` specifies that the raster profile should be used.
+- `"zoom": 5` sets the zoom level to 5.
+- `"input_file": "final.tif"` specifies the input TIFF file located in the mounted `data` directory.
+- `"output_folder": "output_folder"` specifies the directory where the output tiles will be stored, relative to the mounted `data` directory.
 
 ### Important Notes
 
-- Ensure that your `data` directory contains the `final.tif` file before running the command.
+- Ensure that your `data` directory contains the `final.tif` file before running the container and making the API call.
 - The `output_folder` will be created if it does not exist. If it exists, it will be overwritten.
-- The `--profile=raster` option is used to allow tile generation without georeferenced data. If your TIFF file is georeferenced, you may omit this option.
+- The API uses default values for `profile` and `zoom` if they are not specified in the request.
 
 ## Troubleshooting
 
